@@ -111,7 +111,7 @@ def configure_prometheus():
 
     volumes = "{}:/etc/prometheus/prometheus.conf".format(PROMETHEUS_CONF_FILE)
     cid_file = "/var/run/prometheus.cid"
-    run('docker run -d -v {} --cidfile="{}" --name prometheus prom/prometheus'.format(volumes, cid_file))
+    run('docker run -d --name=prometheus -v {} --cidfile="{}" prom/prometheus'.format(volumes, cid_file))
     print "prometheus has been updated"
 
 
