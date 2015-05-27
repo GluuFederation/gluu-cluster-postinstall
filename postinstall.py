@@ -97,6 +97,8 @@ def configure_salt(master_ipaddr):
 
 def configure_weave(host_type, master_ipaddr):
     print "updating weave"
+    if host_type == 'master':
+        master_ipaddr = ''
     run('weave setup')
     run('weave launch ' + master_ipaddr)
     print "weave has been updated"
