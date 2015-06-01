@@ -22,6 +22,7 @@
 # SOFTWARE.
 import subprocess
 import sys
+import time
 
 PROMETHEUS_CONF = '''
 # Global default settings.
@@ -113,6 +114,8 @@ def configure_prometheus():
 
     volumes = "{}:/etc/prometheus/prometheus.conf".format(PROMETHEUS_CONF_FILE)
     cid_file = "/var/run/prometheus.cid"
+    run('rm -f ' + cid_file)
+    time.sleep(30)
     run('docker pull prom/prometheus')
     run('docker run -d --name=prometheus -v {} --cidfile="{}" prom/prometheus'.format(volumes, cid_file))
     print "prometheus has been updated"
