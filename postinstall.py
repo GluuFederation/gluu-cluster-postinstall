@@ -158,12 +158,9 @@ def configure_salt(master_ipaddr):
     logger.info("salt-minion configuration has been updated")
 
 
-def configure_weave(host_type, master_ipaddr):
+def configure_weave():
     logger.info("Updating weave; this may take a while")
-    if host_type == 'master':
-        master_ipaddr = ''
     run('weave setup')
-    run('weave launch ' + master_ipaddr)
     logger.info("weave has been updated")
 
 
@@ -205,7 +202,7 @@ def main():
 
     configure_docker(host, password)
     configure_salt(master_ipaddr)
-    configure_weave(host_type, master_ipaddr)
+    configure_weave()
     if host_type == 'master':
         configure_prometheus()
 
