@@ -84,6 +84,7 @@ def run(command, exit_on_error=True, cwd=None):
             command, stderr=subprocess.STDOUT, shell=True, cwd=cwd)
     except subprocess.CalledProcessError as exc:
         logger.error(exc)
+        logger.error(exc.output)
         if exit_on_error:
             sys.exit(exc.returncode)
         else:
@@ -143,6 +144,8 @@ def configure_docker(host, password):
 
     logger.info("Restarting docker")
     run('service docker restart')
+    # wait docker daemon to run
+    time.sleep(5)
     logger.info("docker with TLS protection has been configured")
 
 
