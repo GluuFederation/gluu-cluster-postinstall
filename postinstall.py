@@ -21,54 +21,39 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 import logging
+import os
 import subprocess
 import sys
 import time
 from getpass import getpass
 
 PROMETHEUS_CONF = '''# Global default settings.
-global {
-    # By default, scrape targets every 15 seconds.
-    scrape_interval: "15s"
+global:
+  scrape_interval: 15s     # By default, scrape targets every 15 seconds.
+  evaluation_interval: 15s # By default, evaluate rules every 15 seconds.
 
-    # By default, evaluate rules every 15 seconds.
-    evaluation_interval: "15s"
+  # Attach these extra labels to all timeseries collected by this
+  # Prometheus instance.
+  labels:
+    monitor: 'gluu-monitor'
 
-    # Attach these extra labels to all timeseries collected by
-    # this Prometheus instance.
-    labels: {
-        label: {
-            name: "monitor"
-            value: "gluu-monitor"
-        }
-    }
+# Load and evaluate rules in this file every 'evaluation_interval' seconds.
+# This field may be repeated.
+# rule_files:
+#   - 'prometheus.rules'
 
-    # Load and evaluate rules in this file every 'evaluation_interval' seconds.
-    # This field may be repeated.
-    #rule_file: "prometheus.rules"
-}
-
-# A job definition containing exactly one endpoint
-# to scrape: Here it's prometheus itself.
-job: {
-    # The job name is added as a label `job={job-name}` to any timeseries
-    # scraped from this job.
-    name: "prometheus"
-
-    # Override the global default and scrape targets from this job
-    # every 5 seconds.
-    scrape_interval: "5s"
-
-    # Let's define a group of targets to scrape for this job.
-    # In this case, only one.
-    target_group: {
-        # These endpoints are scraped via HTTP.
-        target: "http://localhost:9090/metrics"
-    }
-}'''
+scrape_configs:
+  # A job definition containing exactly one endpoint to scrape:
+  # Here it's prometheus itself.
+  - job_name: 'prometheus'
+    scrape_interval: 15s
+    scrape_timeout: 30s
+    target_groups:
+      - targets: ['localhost:9090']
+'''
 
 MINION_CONF_FILE = '/etc/salt/minion'
-PROMETHEUS_CONF_FILE = "/etc/gluu/prometheus/prometheus.conf"
+PROMETHEUS_CONF_FILE = "/etc/gluu/prometheus/prometheus.yml"
 
 logger = logging.getLogger("postinstall")
 logger.setLevel(logging.INFO)
@@ -83,16 +68,37 @@ def run(command, exit_on_error=True, cwd=None):
         return subprocess.check_output(
             command, stderr=subprocess.STDOUT, shell=True, cwd=cwd)
     except subprocess.CalledProcessError as exc:
-        logger.error(exc)
-        logger.error(exc.output)
         if exit_on_error:
+            logger.error(exc)
+            logger.error(exc.output)
             sys.exit(exc.returncode)
-        else:
-            raise
 
 
-def configure_docker(host, password):
+def configure_docker(host):
     logger.info("Configuring secure docker daemon protected by TLS")
+
+    cert_exists = os.path.exists("/etc/docker/cert.pem")
+    key_exists = os.path.exists("/etc/docker/key.pem")
+    cacert_exists = os.path.exists("/etc/docker/ca.pem")
+
+    if any([cert_exists, key_exists, cacert_exists]):
+        while True:
+            reconfigure = raw_input("Found existing docker certificate files. "
+                                    "Re-configure? (y/n): ")
+            reconfigure = reconfigure.lower()
+            if reconfigure == "n":
+                logger.info("Skipping docker configuration")
+                return
+            elif reconfigure == "y":
+                break
+
+    password = getpass("Password for TLS certificate: ")
+    password_confirm = getpass("Re-type password for TLS certificate: ")
+
+    if password != password_confirm:
+        logger.warn("Password and password confirmation "
+                    "doesn't match; exiting")
+        sys.exit(0)
 
     # cleanup existing ``/etc/docker`` directory
     run("mkdir -p /etc/docker")
@@ -144,6 +150,7 @@ def configure_docker(host, password):
 
     logger.info("Restarting docker")
     run('service docker restart')
+
     # wait docker daemon to run
     time.sleep(5)
     logger.info("docker with TLS protection has been configured")
@@ -171,16 +178,30 @@ def configure_prometheus():
     logger.info("Updating prometheus; this may take a while")
     run('mkdir -p /etc/gluu/prometheus')
 
+    conf_exists = os.path.exists(PROMETHEUS_CONF_FILE)
+    if conf_exists:
+        while True:
+            overwrite = raw_input("Found existing prometheus config. "
+                                  "Overwrite? (y/n): ")
+            overwrite = overwrite.lower()
+            if overwrite == "n":
+                logger.info("Skipping prometheus configuration")
+                return
+            if overwrite == "y":
+                break
+
+    logger.info("Pulling latest prometheus image")
+    run('docker pull prom/prometheus')
+    time.sleep(30)
+
     with open(PROMETHEUS_CONF_FILE, 'w') as fp:
         fp.write(PROMETHEUS_CONF)
+    volumes = "{}:/etc/prometheus/prometheus.yml".format(PROMETHEUS_CONF_FILE)
 
-    volumes = "{}:/etc/prometheus/prometheus.conf".format(PROMETHEUS_CONF_FILE)
-    cid_file = "/var/run/prometheus.cid"
-    run('rm -f ' + cid_file)
-    time.sleep(30)
-    run('docker pull prom/prometheus')
-    run('docker run -d --name=prometheus -v {} --cidfile="{}" '
-        'prom/prometheus'.format(volumes, cid_file))
+    run('docker rm -f prometheus', exit_on_error=False)
+    run('docker run -d --name=prometheus -v {} '
+        '-p 127.0.0.1:9090:9090 '
+        'prom/prometheus'.format(volumes))
     logger.info("prometheus has been updated")
 
 
@@ -193,17 +214,9 @@ def main():
         sys.exit(1)
 
     master_ipaddr = raw_input("Enter MASTER_IPADDR (ex xxx.xxx.xxx.xxx) : ")
-
     host = raw_input("IP address of this server: ")
-    password = getpass("Password for TLS certificate: ")
-    password_confirm = getpass("Re-type password for TLS certificate: ")
 
-    if password != password_confirm:
-        logger.warn("Password and password confirmation "
-                    "doesn't match; exiting")
-        sys.exit(0)
-
-    configure_docker(host, password)
+    configure_docker(host)
     configure_salt(master_ipaddr)
     configure_weave()
     if host_type == 'master':
