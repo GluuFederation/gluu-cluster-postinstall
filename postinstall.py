@@ -190,8 +190,8 @@ def configure_prometheus():
             if overwrite == "y":
                 break
 
-    logger.info("Pulling latest prometheus image")
-    run('docker pull prom/prometheus')
+    logger.info("Pulling prometheus image v0.15.1")
+    run('docker pull prom/prometheus:0.15.1')
     time.sleep(30)
 
     with open(PROMETHEUS_CONF_FILE, 'w') as fp:
@@ -201,7 +201,7 @@ def configure_prometheus():
     run('docker rm -f prometheus', exit_on_error=False)
     run('docker run -d --name=prometheus -v {} '
         '-p 127.0.0.1:9090:9090 '
-        'prom/prometheus'.format(volumes))
+        'prom/prometheus:0.15.1'.format(volumes))
     logger.info("prometheus has been updated")
 
 
