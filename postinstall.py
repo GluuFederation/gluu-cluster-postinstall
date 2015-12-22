@@ -22,6 +22,7 @@
 # SOFTWARE.
 import logging
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -37,10 +38,10 @@ global:
   labels:
     monitor: 'gluu-monitor'
 
-# Load and evaluate rules in this file every 'evaluation_interval' seconds.
-# This field may be repeated.
-# rule_files:
-#   - 'prometheus.rules'
+  # Load and evaluate rules in this file every 'evaluation_interval' seconds.
+  # This field may be repeated.
+  # rule_files:
+  #   - 'prometheus.rules'
 
 scrape_configs:
   # A job definition containing exactly one endpoint to scrape:
@@ -74,7 +75,7 @@ def run(command, exit_on_error=True, cwd=None):
             sys.exit(exc.returncode)
 
 
-def configure_docker(host):
+def configure_docker(host, password):
     logger.info("Configuring secure docker daemon protected by TLS")
 
     cert_exists = os.path.exists("/etc/docker/cert.pem")
@@ -91,14 +92,6 @@ def configure_docker(host):
                 return
             elif reconfigure == "y":
                 break
-
-    password = getpass("Password for TLS certificate: ")
-    password_confirm = getpass("Re-type password for TLS certificate: ")
-
-    if password != password_confirm:
-        logger.warn("Password and password confirmation "
-                    "doesn't match; exiting")
-        sys.exit(0)
 
     # cleanup existing ``/etc/docker`` directory
     run("mkdir -p /etc/docker")
@@ -205,18 +198,69 @@ def configure_prometheus():
     logger.info("prometheus has been updated")
 
 
+def validate_ip(addr):
+    try:
+        socket.inet_pton(socket.AF_INET, addr)
+    except socket.error:
+        return False
+    else:
+        return True
+
+
 def main():
+    print "=== Collecting configuration ==="
     host_type = raw_input(
-        "Enter host type (ex. master or consumer) : ").lower()
+        "Enter provider type (either 'master' or 'consumer') : ").lower()
 
     if host_type not in ['master', 'consumer']:
         logger.warn('Unsupported host type; exiting')
         sys.exit(1)
 
-    master_ipaddr = raw_input("Enter MASTER_IPADDR (ex xxx.xxx.xxx.xxx) : ")
+    master_ipaddr = raw_input("Enter master IP address (e.g. 10.10.10.10) : ")
     host = raw_input("IP address of this server: ")
 
-    configure_docker(host)
+    # validates IP addresses
+    for addr in [master_ipaddr, host]:
+        if not validate_ip(addr):
+            logger.warn("IP address {} is not acceptable; "
+                        "exiting".format(addr))
+            sys.exit(1)
+
+    password = getpass("Password for TLS certificate: ")
+    password_confirm = getpass("Re-type password for TLS certificate: ")
+
+    # validates passwords equality
+    if password != password_confirm:
+        logger.warn("Password and password confirmation "
+                    "doesn't match; exiting")
+        sys.exit(1)
+
+    # openssl password requires 6 chars at minimum
+    if len(password) < 6:
+        logger.warn("Password must use 6 characters or more; exiting")
+        sys.exit(1)
+
+    print ""
+    print "=== Configuration details ==="
+    print "Provider type: {}".format(host_type)
+    print "Master IP address: {}".format(master_ipaddr)
+    print "Current server IP address: {}".format(host)
+    print "TLS certificate password: {}".format("*" * len(password))
+
+    print ""
+    while True:
+        proceed = raw_input("Proceed with current configuration? (y/n): ")
+        proceed = proceed.lower()
+        if proceed == "y":
+            break
+        elif proceed == "n":
+            print ""
+            logger.info("Installation stopped by user")
+            sys.exit(0)
+        else:
+            continue
+
+    configure_docker(host, password)
     configure_salt(master_ipaddr)
     configure_weave()
     if host_type == 'master':
@@ -230,4 +274,5 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
+        print ""
         logger.info("Installation stopped by user")
