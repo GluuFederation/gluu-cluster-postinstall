@@ -137,7 +137,7 @@ def configure_docker(host, password):
                   '--tlscacert=/etc/docker/ca.pem ' \
                   ' --tlscert=/etc/docker/server-cert.pem ' \
                   '--tlskey=/etc/docker/server-key.pem ' \
-                  '-H tcp://0.0.0.0:2375 ' \
+                  '-H tcp://0.0.0.0:2376 ' \
                   '-H unix:///var/run/docker.sock"'
     run("echo '{}' >> /etc/default/docker".format(docker_conf))
 
