@@ -135,7 +135,7 @@ def configure_docker(host, password):
 
     os_release = determine_os()
     if os_release == "centos":
-        docker_conf = 'OPTIONS="--tlsverify ' \
+        docker_conf = 'OPTIONS="--selinux-enabled --tlsverify ' \
                       '--tlscacert=/etc/docker/ca.pem ' \
                       ' --tlscert=/etc/docker/server-cert.pem ' \
                       '--tlskey=/etc/docker/server-key.pem ' \
