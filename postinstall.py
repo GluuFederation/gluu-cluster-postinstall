@@ -133,13 +133,23 @@ def configure_docker(host, password):
         run("cp {0} /etc/docker/{0}".format(file_))
         run("rm {}".format(file_))
 
-    docker_conf = 'DOCKER_OPTS="--tlsverify ' \
-                  '--tlscacert=/etc/docker/ca.pem ' \
-                  ' --tlscert=/etc/docker/server-cert.pem ' \
-                  '--tlskey=/etc/docker/server-key.pem ' \
-                  '-H tcp://0.0.0.0:2376 ' \
-                  '-H unix:///var/run/docker.sock"'
-    run("echo '{}' >> /etc/default/docker".format(docker_conf))
+    os_release = determine_os()
+    if os_release == "centos":
+        docker_conf = 'OPTIONS="--tlsverify ' \
+                      '--tlscacert=/etc/docker/ca.pem ' \
+                      ' --tlscert=/etc/docker/server-cert.pem ' \
+                      '--tlskey=/etc/docker/server-key.pem ' \
+                      '-H tcp://0.0.0.0:2376 ' \
+                      '-H unix:///var/run/docker.sock"'
+        run("echo '{}' >> /etc/sysconfig/docker".format(docker_conf))
+    else:
+        docker_conf = 'DOCKER_OPTS="--tlsverify ' \
+                      '--tlscacert=/etc/docker/ca.pem ' \
+                      ' --tlscert=/etc/docker/server-cert.pem ' \
+                      '--tlskey=/etc/docker/server-key.pem ' \
+                      '-H tcp://0.0.0.0:2376 ' \
+                      '-H unix:///var/run/docker.sock"'
+        run("echo '{}' >> /etc/default/docker".format(docker_conf))
 
     logger.info("Restarting docker")
     run('service docker restart')
@@ -268,6 +278,17 @@ def main():
 
     logger.info("Installation finished")
     sys.exit(0)
+
+
+def determine_os():
+    # default supported OS
+    os_release = "ubuntu"
+
+    with open("/etc/os-release") as fp:
+        txt = fp.read()
+        if "centos" in txt:
+            os_release = "centos"
+    return os_release
 
 
 if __name__ == '__main__':
