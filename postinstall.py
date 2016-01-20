@@ -133,6 +133,8 @@ def configure_docker(host, password):
         run("cp {0} /etc/docker/{0}".format(file_))
         run("rm {}".format(file_))
 
+    logger.info("Reconfiguring docker")
+
     os_release = determine_os()
     if os_release == "centos":
         docker_conf = 'OPTIONS="--selinux-enabled --tlsverify ' \
@@ -142,6 +144,7 @@ def configure_docker(host, password):
                       '-H tcp://0.0.0.0:2376 ' \
                       '-H unix:///var/run/docker.sock"'
         run("echo '{}' >> /etc/sysconfig/docker".format(docker_conf))
+        run('systemctl restart docker.service')
     else:
         docker_conf = 'DOCKER_OPTS="--tlsverify ' \
                       '--tlscacert=/etc/docker/ca.pem ' \
@@ -150,9 +153,7 @@ def configure_docker(host, password):
                       '-H tcp://0.0.0.0:2376 ' \
                       '-H unix:///var/run/docker.sock"'
         run("echo '{}' >> /etc/default/docker".format(docker_conf))
-
-    logger.info("Restarting docker")
-    run('service docker restart')
+        run('service docker restart')
 
     # wait docker daemon to run
     time.sleep(5)
@@ -166,8 +167,13 @@ def configure_salt(master_ipaddr):
     with open(MINION_CONF_FILE, 'a') as fp:
         fp.write('\n' + minion_conf)
 
-    logger.info("Restarting salt-minion")
-    run('service salt-minion restart')
+    logger.info("Reconfiguring salt-minion")
+
+    os_release = determine_os()
+    if os_release == "centos":
+        run('systemctl restart salt-minion.service')
+    else:
+        run('service salt-minion restart')
     logger.info("salt-minion configuration has been updated")
 
 
