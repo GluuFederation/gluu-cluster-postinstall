@@ -161,13 +161,11 @@ def configure_docker(host, password):
 
 
 def configure_salt(master_ipaddr):
-    logger.info("Updating salt-minion configuration")
+    logger.info("Reconfiguring salt-minion")
     minion_conf = 'master: ' + master_ipaddr
 
     with open(MINION_CONF_FILE, 'a') as fp:
         fp.write('\n' + minion_conf)
-
-    logger.info("Reconfiguring salt-minion")
 
     os_release = determine_os()
     if os_release == "centos":
