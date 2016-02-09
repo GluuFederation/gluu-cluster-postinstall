@@ -76,6 +76,18 @@ def run(command, exit_on_error=True, cwd=None):
 
 
 def configure_docker(host, password):
+    # get registry certificate
+    registry_dir = "/etc/docker/certs.d/registry.gluu.org\:5000"
+    registry_cert = os.path.join(registry_dir, "ca.crt")
+
+    if not os.path.exists(registry_dir):
+        os.makedirs(registry_dir)
+    if not os.path.exists(registry_cert):
+        logger.info("Downloading registry certificate")
+        run("echo -n | openssl s_client -connect registry.gluu.org:5000 "
+            "| sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' "
+            "> {}".format(registry_cert))
+
     logger.info("Configuring secure docker daemon protected by TLS")
 
     cert_exists = os.path.exists("/etc/docker/cert.pem")
