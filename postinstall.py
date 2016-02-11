@@ -77,7 +77,7 @@ def run(command, exit_on_error=True, cwd=None):
 
 def configure_docker(host, password):
     # get registry certificate
-    registry_dir = "/etc/docker/certs.d/registry.gluu.org\:5000"
+    registry_dir = "/etc/docker/certs.d/registry.gluu.org:5000"
     registry_cert = os.path.join(registry_dir, "ca.crt")
 
     if not os.path.exists(registry_dir):
