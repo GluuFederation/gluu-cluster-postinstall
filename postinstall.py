@@ -53,8 +53,25 @@ scrape_configs:
       - targets: ['localhost:9090']
 '''
 
+NGINX_CONF = '''server {
+    listen       80;
+    server_name  localhost;
+    root   /nginx;
+
+    location / {
+        autoindex          on;
+        sendfile           on;
+        sendfile_max_chunk 1m;
+        tcp_nopush         on;
+        tcp_nodelay        on;
+    }
+}
+'''
+
 MINION_CONF_FILE = '/etc/salt/minion'
 PROMETHEUS_CONF_FILE = "/etc/gluu/prometheus/prometheus.yml"
+NGINX_CONF_FILE = '/etc/gluu/nginx/nginx.conf'
+NGINX_CUSTOM_VOLUME_PATH = '/opt/gluucustom'
 
 logger = logging.getLogger("postinstall")
 logger.setLevel(logging.INFO)
@@ -224,6 +241,18 @@ def configure_prometheus():
     logger.info("prometheus has been updated")
 
 
+def configure_nginx_sfs():
+    logger.info("configuring nginx static file server")
+    run('docker pull nginx:1.9')
+    time.sleep(30)
+    run('mkdir -p {}'.format(os.path.dirname(NGINX_CONF_FILE)))
+    with open(NGINX_CONF_FILE, 'w') as fp:
+        fp.write(NGINX_CONF)
+    volumes = ["{}:/etc/nginx/conf.d/default.conf".format(NGINX_CONF_FILE), '{}:/nginx:ro'.format(NGINX_CUSTOM_VOLUME_PATH)]
+    run('docker rm -f nginx_sfs', exit_on_error=False)
+    run('docker run --name nginx_sfs -p 9001:80 -v {} -v {} -d nginx'.format(*volumes))
+
+
 def validate_ip(addr):
     try:
         socket.inet_pton(socket.AF_INET, addr)
@@ -291,6 +320,7 @@ def main():
     configure_weave()
     if host_type == 'master':
         configure_prometheus()
+        configure_nginx_sfs()
 
     logger.info("Installation finished")
     sys.exit(0)
