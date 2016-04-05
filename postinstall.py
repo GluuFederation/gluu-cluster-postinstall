@@ -71,7 +71,7 @@ NGINX_CONF = '''server {
 MINION_CONF_FILE = '/etc/salt/minion'
 PROMETHEUS_CONF_FILE = "/etc/gluu/prometheus/prometheus.yml"
 NGINX_CONF_FILE = '/etc/gluu/nginx/nginx.conf'
-CUSTOM_PAYLOAD_ROOTPATH = '/opt/payloadroot'
+CUSTOM_PAYLOAD_ROOTPATH = '/opt/gluu/payloadroot'
 
 logger = logging.getLogger("postinstall")
 logger.setLevel(logging.INFO)
@@ -248,6 +248,7 @@ def configure_nginx_sfs():
     run('mkdir -p {}'.format(os.path.dirname(NGINX_CONF_FILE)))
     with open(NGINX_CONF_FILE, 'w') as fp:
         fp.write(NGINX_CONF)
+    run('mkdir -p {}'.format(CUSTOM_PAYLOAD_ROOTPATH))
     volumes = ["{}:/etc/nginx/conf.d/default.conf".format(NGINX_CONF_FILE), '{}:/nginx:ro'.format(CUSTOM_PAYLOAD_ROOTPATH)]
     run('docker rm -f nginx_sfs', exit_on_error=False)
     run('docker run --name nginx_sfs -p 9001:80 -v {} -v {} -d nginx'.format(*volumes))
@@ -321,7 +322,6 @@ def main():
     configure_docker(host, password)
     configure_salt(master_ipaddr)
     configure_weave()
-    run('mkdir -p {}'.format(CUSTOM_PAYLOAD_ROOTPATH))
     if host_type == 'master':
         configure_prometheus()
         configure_nginx_sfs()
